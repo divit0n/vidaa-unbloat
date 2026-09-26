@@ -4,6 +4,15 @@ Debloating, speeding up and de-spying a **Hisense 70A5FE TV running VIDAA 9** (f
 
 This repo contains: the technique (DNS spoofing + the JS bridge built into the TV browser), working tools, and documentation of the **dirty practices Hisense/VIDAA ships in its TVs** discovered during the exploration.
 
+> ## ⚠️ Disclaimer — read first
+> This repository is published **strictly for educational and research purposes**: to document the telemetry and data-collection behavior of consumer smart TVs and to help owners understand what devices they purchased are doing on their own networks.
+>
+> - Use everything here **only on devices you own**, and **only on networks you are authorized to test**.
+> - Pointing TVs, routers or other people's equipment at tools from this repo **without the owner's explicit consent may be illegal** in your jurisdiction (unauthorized access, wiretapping, computer misuse acts — e.g. CFAA, polish art. 267 kk, EU equivalents).
+> - Modifying TV firmware/settings can brick the device or void warranty. **You take full responsibility** for anything you run.
+> - We are not affiliated with, or endorsed by, Hisense or VIDAA. All trademarks belong to their respective owners.
+> - Everything described here was performed on **our own TV, on our own LAN, with full consent of the network owner**.
+
 ---
 
 ## 🕵️ What Hisense does with your TV (documented practices)
@@ -34,16 +43,64 @@ A dedicated **`hi_logreport_service`** process runs in the background at all tim
 
 ---
 
-## 🛠️ The technique
+## 🔍 How to verify on your own TV
+
+No exploit needed — your router already sees every DNS query the TV makes. Three levels of verification, from read-only upwards:
+
+### Level 1 — Read-only: watch the DNS log (5 minutes)
+Point your TV at your router's DNS (default), leave it **idle on the home screen for 30–60 minutes**, and watch the queries:
+
+```bash
+# OpenWrt / GL.iNet router:
+tcpdump -i br-lan port 53 -n | grep -iE 'vidaahub|unruly|netflix'
+
+# or check the query log in Pi-hole / AdGuard Home / OpenWrt dnsmasq log
+```
+
+If your TV is a Hisense VIDAA, you should see most of these within the hour:
+
+| Domain | What it is |
+|---|---|
+| `ter-jrnl-eu.vidaahub.com` | VIDAA EU event journal — the most talkative one |
+| `ter-jrnl-na.vidaahub.com` | VIDAA North-America journal |
+| `rpt-mntz-azure.vidaahub.com` / `rsc-mntz.vidaahub.com` | Monitoring/reporting (Azure) |
+| `acr.unruly.co` | **Automatic Content Recognition** — watch what you watch |
+| `logs.netflix.com`, `nrdp.push.prod.netflix.com` | Netflix client logging (appears with the Netflix app installed) |
+| `img.vidaahub.com`, `layout-ui-eu.vidaahub.com` | legit app-store/UI traffic — needed for the home screen |
+
+**No capture, no claim** — that's all the evidence you need that your TV phones home, regardless of what any settings screen says.
+
+### Level 2 — Block and confirm behavior
+Add the domains from [`blocklist/domains.txt`](blocklist/domains.txt) to your router (dnsmasq `address=/domain/0.0.0.0`, Pi-hole, or AdGuard Home custom rules). Everything keeps working — the TV just stops reporting. Netflix plays fine; only its log spigot closes.
+
+### Level 3 — Reproduce the full exploration
+Only on a TV you own, on your own network:
+
+```bash
+pip install dnslib
+# 1. generate a self-signed cert for vidaahub.com, place it next to the script
+openssl req -x509 -newkey rsa:2048 -keyout vidaahub.com.key -out vidaahub.com.crt \
+  -days 365 -nodes -subj "/CN=vidaahub.com"
+# 2. set PC_IP / UPSTREAM in tools/vidaa-cnc.py
+python tools/vidaa-cnc.py
+# 3. on the TV: set DNS manually to the PC IP, open https://vidaahub.com/ in the browser
+# 4. drop JS commands into cnd/001.js, 002.js ... — results land in results.jsonl
+```
+
+The bridge page enumerates the exposed `Hisense_*` functions, and the hotfolder lets you send arbitrary JS that runs inside the TV browser context — including `vowOS.service.syncExecute('hiutils', {api:'fileRead', args:{path:'websdk/../../etc/passwd', mode:6}})` for a full filesystem read. See [`docs/FINDINGS.md`](docs/FINDINGS.md) for everything we mapped.
+
+---
+
+## 🛠️ The technique (summary)
 
 1. **DNS spoofing**: a custom DNS server answers `vidaahub.com` with the PC's IP and forwards everything else to the router. The TV is pointed at this DNS manually.
 2. **HTTPS**: a self-signed cert for `vidaahub.com` (the TV asks once for acceptance).
-3. **JS bridge**: the page opened in the TV browser gains access to the `vowOS`/phoenix bridge compiled into hisenseUI — function enumeration, remote JS execution (hotfolder `cnd/NNN.js` → results in `results.jsonl`).
+3. **JS bridge**: the page opened in the TV browser gains access to the `vowOS`/phoenix bridge compiled into hisenseUI — function enumeration, remote JS execution.
 4. **Path traversal in hiutils**: the `fileRead`/`fileWrite` API concatenates a base dir from a fixed list with the user path — `websdk/../../etc/passwd` gives **full filesystem read and write** (RW partitions: `/APPS`, `/data`, `/var/local`, `/OAD`, `/tmp`).
-5. **Phoenix API on localhost:9009**: services `hiutils`, `tvinfo` (native "biz" keys: brightness, contrast, MEMC, picture mode, MAC, identifiers), `fetcher` (server-side fetch), `ipchandler`. Called via POST from a page running on the TV.
+5. **Phoenix API on localhost:9009**: services `hiutils`, `tvinfo` (native "biz" keys: brightness, contrast, MEMC, picture mode, MAC, identifiers), `fetcher` (server-side fetch), `ipchandler`.
 6. **MQTT (port 36669, TLS with client cert)**: `applist`, `launchapp`, `sendkey` — via the `hisense_tv` library.
 
-**Results**: bloat removed, brightness 100% + max contrast + max MEMC set through native APIs, telemetry blocklisted, full system map (processes, ports, mounts, partitions).
+**Results on our unit**: bloat removed, brightness 100% + max contrast + max MEMC set through native APIs, telemetry blocklisted, full system map (processes, ports, mounts, partitions).
 
 ---
 
@@ -54,18 +111,7 @@ A dedicated **`hi_logreport_service`** process runs in the background at all tim
 - [`tools/tv-relaunch.py`](tools/tv-relaunch.py) — reopens the bridge page via MQTT
 - [`docs/FINDINGS.md`](docs/FINDINGS.md) — full technical findings (processes, ports, partitions, APIs, paths)
 
-## 🚀 Quick start
-
-```bash
-pip install dnslib
-# 1. generate a self-signed cert for vidaahub.com, place it next to the script
-# 2. set PC_IP / UPSTREAM in vidaa-cnc.py
-python tools/vidaa-cnc.py
-# 3. on the TV: set DNS manually to the PC IP, open https://vidaahub.com/ in the browser
-# 4. drop JS commands into cnd/001.js, 002.js ... — results land in results.jsonl
-```
-
-## ⚖️ Disclaimer
-Everything here was done on our own device, on our own network. A TV is a computer sitting in your living room — you have the right to know what it transmits and to decide about it.
+## ⚖️ Final note
+A TV is a computer sitting in your living room, permanently connected to your network. You have the right to know what it transmits, to decide what it may transmit, and to remove software you never asked for. This repo exists so you don't have to take the manufacturer's word for it.
 
 License: MIT.
