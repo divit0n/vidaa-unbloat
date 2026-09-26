@@ -8,7 +8,7 @@ This repo contains: the technique (DNS spoofing + the JS bridge built into the T
 > This repository is published **strictly for educational and research purposes**: to document the telemetry and data-collection behavior of consumer smart TVs and to help owners understand what devices they purchased are doing on their own networks.
 >
 > - Use everything here **only on devices you own**, and **only on networks you are authorized to test**.
-> - Pointing TVs, routers or other people's equipment at tools from this repo **without the owner's explicit consent may be illegal** in your jurisdiction (unauthorized access, wiretapping, computer misuse acts — e.g. CFAA, polish art. 267 kk, EU equivalents).
+> - Pointing TVs, routers or other people's equipment at tools from this repo **without the owner's explicit consent may be illegal** in your jurisdiction (unauthorized access, wiretapping, computer misuse acts — e.g. CFAA, Polish art. 267 kk, EU equivalents).
 > - Modifying TV firmware/settings can brick the device or void warranty. **You take full responsibility** for anything you run.
 > - We are not affiliated with, or endorsed by, Hisense or VIDAA. All trademarks belong to their respective owners.
 > - Everything described here was performed on **our own TV, on our own LAN, with full consent of the network owner**.
@@ -20,10 +20,10 @@ This repo contains: the technique (DNS spoofing + the JS bridge built into the T
 Everything below was observed on a live device during this project (DNS logs from the router + direct reads of the TV filesystem and processes):
 
 ### 1. ACR — Automatic Content Recognition
-The TV regularly connects to **`acr.unruly.co`** (14 DNS queries in a short observation window). ACR means the TV analyzes the picture/audio of what you watch and ships signatures to a third party. Enabled by default, with no meaningful on-screen disclosure.
+The TV regularly connects to **`acr.unruly.co`**. ACR means the TV analyzes the picture/audio of what you watch and ships signatures to a third party. Enabled by default, with no meaningful on-screen disclosure.
 
 ### 2. Telemetry every ~20 seconds
-- **`ter-jrnl-eu.vidaahub.com`** — 154 DNS queries over a few hours (VIDAA EU event journal). The TV wakes from idle just to report.
+- **`ter-jrnl-eu.vidaahub.com`** — 154 DNS queries over a few hours of observation (VIDAA EU event journal). The TV wakes from idle just to report.
 - **`rpt-mntz-azure.vidaahub.com`**, **`rsc-mntz.vidaahub.com`** — reporting/monitoring hosted on Azure.
 - **Netflix on a Hisense TV** ships logs to **`logs.netflix.com`** and **`nrdp.push.prod.netflix.com`** roughly every 20 s, whether anyone is watching or not.
 
@@ -45,19 +45,16 @@ A dedicated **`hi_logreport_service`** process runs in the background at all tim
 
 ## 🔍 How to verify on your own TV
 
-No exploit needed — your router already sees every DNS query the TV makes. Three levels of verification, from read-only upwards:
+No exploit needed — your router already sees every DNS query the TV makes. Three levels, from read-only upwards:
 
 ### Level 1 — Read-only: watch the DNS log (5 minutes)
-Point your TV at your router's DNS (default), leave it **idle on the home screen for 30–60 minutes**, and watch the queries:
+Run [`tools/verify-tv.sh`](tools/verify-tv.sh) on your OpenWrt/GL.iNet router, or manually:
 
 ```bash
-# OpenWrt / GL.iNet router:
 tcpdump -i br-lan port 53 -n | grep -iE 'vidaahub|unruly|netflix'
-
-# or check the query log in Pi-hole / AdGuard Home / OpenWrt dnsmasq log
 ```
 
-If your TV is a Hisense VIDAA, you should see most of these within the hour:
+Leave the TV **idle on the home screen** for 30–60 minutes. If it's a Hisense VIDAA, you'll see most of these:
 
 | Domain | What it is |
 |---|---|
@@ -65,29 +62,30 @@ If your TV is a Hisense VIDAA, you should see most of these within the hour:
 | `ter-jrnl-na.vidaahub.com` | VIDAA North-America journal |
 | `rpt-mntz-azure.vidaahub.com` / `rsc-mntz.vidaahub.com` | Monitoring/reporting (Azure) |
 | `acr.unruly.co` | **Automatic Content Recognition** — watch what you watch |
-| `logs.netflix.com`, `nrdp.push.prod.netflix.com` | Netflix client logging (appears with the Netflix app installed) |
-| `img.vidaahub.com`, `layout-ui-eu.vidaahub.com` | legit app-store/UI traffic — needed for the home screen |
+| `logs.netflix.com`, `nrdp.push.prod.netflix.com` | Netflix client logging |
+| `img.vidaahub.com`, `layout-ui-eu.vidaahub.com` | legit app-store/UI traffic — needed, don't block |
 
-**No capture, no claim** — that's all the evidence you need that your TV phones home, regardless of what any settings screen says.
+**No capture, no claim** — DNS logs are independent evidence of what the TV transmits, regardless of what any settings screen says.
 
-### Level 2 — Block and confirm behavior
-Add the domains from [`blocklist/domains.txt`](blocklist/domains.txt) to your router (dnsmasq `address=/domain/0.0.0.0`, Pi-hole, or AdGuard Home custom rules). Everything keeps working — the TV just stops reporting. Netflix plays fine; only its log spigot closes.
+### Level 2 — Block it and confirm nothing breaks
+- OpenWrt/GL.iNet: run [`tools/router-blocklist.sh`](tools/router-blocklist.sh) over SSH (one command, auto-verifies, `remove` to uninstall)
+- Everyone else: import [`blocklist/domains.txt`](blocklist/domains.txt) into Pi-hole / AdGuard Home
 
-### Level 3 — Reproduce the full exploration
-Only on a TV you own, on your own network:
+Everything keeps working — the TV just stops reporting. Netflix plays fine; only its log spigot closes.
+
+### Level 3 — Reproduce the full exploration (own TV, own network)
 
 ```bash
 pip install dnslib
-# 1. generate a self-signed cert for vidaahub.com, place it next to the script
 openssl req -x509 -newkey rsa:2048 -keyout vidaahub.com.key -out vidaahub.com.crt \
   -days 365 -nodes -subj "/CN=vidaahub.com"
-# 2. set PC_IP / UPSTREAM in tools/vidaa-cnc.py
+# set PC_IP / UPSTREAM in tools/vidaa-cnc.py, then:
 python tools/vidaa-cnc.py
-# 3. on the TV: set DNS manually to the PC IP, open https://vidaahub.com/ in the browser
-# 4. drop JS commands into cnd/001.js, 002.js ... — results land in results.jsonl
+# TV: set DNS to the PC IP, open https://vidaahub.com/ in the TV browser
+# drop JS into cnd/001.js, 002.js ... — results land in results.jsonl
 ```
 
-The bridge page enumerates the exposed `Hisense_*` functions, and the hotfolder lets you send arbitrary JS that runs inside the TV browser context — including `vowOS.service.syncExecute('hiutils', {api:'fileRead', args:{path:'websdk/../../etc/passwd', mode:6}})` for a full filesystem read. See [`docs/FINDINGS.md`](docs/FINDINGS.md) for everything we mapped.
+Curated commands (bridge enumeration, filesystem reads, native picture APIs, process scans) with explanations and pitfalls: [`examples/bridge-commands.md`](examples/bridge-commands.md). Raw outputs from our unit: [`examples/sample-results.jsonl`](examples/sample-results.jsonl).
 
 ---
 
@@ -106,10 +104,16 @@ The bridge page enumerates the exposed `Hisense_*` functions, and the hotfolder 
 
 ## 📁 Repository contents
 
-- [`blocklist/domains.txt`](blocklist/domains.txt) — domains to block (dnsmasq/OpenWrt/AGH/Pi-hole formats)
-- [`tools/vidaa-cnc.py`](tools/vidaa-cnc.py) — DNS + HTTPS + C&C server with a JS command hotfolder
-- [`tools/tv-relaunch.py`](tools/tv-relaunch.py) — reopens the bridge page via MQTT
-- [`docs/FINDINGS.md`](docs/FINDINGS.md) — full technical findings (processes, ports, partitions, APIs, paths)
+| Path | What it is |
+|---|---|
+| [`blocklist/domains.txt`](blocklist/domains.txt) | Domains to block, dnsmasq + AdGuard/Pi-hole formats |
+| [`tools/verify-tv.sh`](tools/verify-tv.sh) | Read-only capture script — prove your TV phones home |
+| [`tools/router-blocklist.sh`](tools/router-blocklist.sh) | One-command blacklist installer for OpenWrt/GL.iNet (with `remove`) |
+| [`tools/vidaa-cnc.py`](tools/vidaa-cnc.py) | DNS + HTTPS + C&C server with JS command hotfolder |
+| [`tools/tv-relaunch.py`](tools/tv-relaunch.py) | Reopens the bridge page via MQTT |
+| [`examples/bridge-commands.md`](examples/bridge-commands.md) | Curated bridge JS commands + pitfalls |
+| [`examples/sample-results.jsonl`](examples/sample-results.jsonl) | Real (sanitized) outputs from our TV |
+| [`docs/FINDINGS.md`](docs/FINDINGS.md) | Full technical findings (processes, ports, partitions, APIs, paths) |
 
 ## ⚖️ Final note
 A TV is a computer sitting in your living room, permanently connected to your network. You have the right to know what it transmits, to decide what it may transmit, and to remove software you never asked for. This repo exists so you don't have to take the manufacturer's word for it.
