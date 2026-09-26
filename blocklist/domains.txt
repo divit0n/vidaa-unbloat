@@ -1,7 +1,7 @@
-# Blacklist telemetrii/śledzenia Hisense VIDAA (+ Netflix logging + ads)
-# Oba formaty:
+# Telemetry/tracking blacklist for Hisense VIDAA TVs (+ Netflix logging + ads)
+# Both formats included:
 
-# --- dnsmasq / OpenWrt (uci add_list dhcp.@dnsmasq[0].address='/domena/0.0.0.0') ---
+# --- dnsmasq / OpenWrt: uci add_list dhcp.@dnsmasq[0].address='/domain/0.0.0.0' ---
 /ter-jrnl-eu.vidaahub.com/0.0.0.0
 /ter-jrnl-na.vidaahub.com/0.0.0.0
 /telemetry.vidaahub.com/0.0.0.0
@@ -14,7 +14,7 @@
 /doubleclick.net/0.0.0.0
 /pixel.ssai.media/0.0.0.0
 
-# --- AdGuard Home / Pi-hole (format hosts też działa) ---
+# --- AdGuard Home / Pi-hole (hosts format also works) ---
 0.0.0.0 ter-jrnl-eu.vidaahub.com
 0.0.0.0 ter-jrnl-na.vidaahub.com
 0.0.0.0 telemetry.vidaahub.com

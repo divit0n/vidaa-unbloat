@@ -1,12 +1,12 @@
-# Otwiera/powtarza strone mostka w przegladarce TV przez MQTT.
-# Wymaga: pip install hisense-tv (biblioteka hisense_tv), sparowany certyfikat kliencki (vidaa_client.pem/key).
-# TV_IP i MAC dostosuj do swojej sieci.
+# Reopens the bridge page in the TV browser via MQTT.
+# Requires: pip install hisense-tv (the hisense_tv library), a paired client cert (vidaa_client.pem/key).
+# Adjust TV_IP and MAC to your setup.
 import sys, time
-sys.path.insert(0, r"C:\sciezka\do\site-packages")  # <- venv z hisense_tv
+sys.path.insert(0, r"C:\path\to\site-packages")  # <- venv with hisense_tv
 from hisense_tv import HisenseTV
 
-TV_IP = "192.168.8.170"            # <- IP telewizora
-MAC = "AA:BB:CC:DD:EE:FF"         # <- MAC TV (WiFi lub LAN, ten sam co przy parowaniu)
+TV_IP = "192.168.8.170"            # <- your TV's IP
+MAC = "AA:BB:CC:DD:EE:FF"         # <- TV MAC (WiFi or LAN, the one used at pairing)
 
 tv = HisenseTV(host=TV_IP, mac_address=MAC, use_dynamic_auth=True,
                certfile=r"C:\Users\user\Downloads\vidaa_client.pem",

