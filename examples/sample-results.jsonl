@@ -1,0 +1,6 @@
+{"id": -1, "ok": true, "result": {"sid": "d1w6x8", "bridge": {"Hisense_installApp": "function", "Hisense_uninstallApp": "function", "Hisense_getInstalledApps": "function", "Hisense_FileRead": "function", "Hisense_FileWrite": "function", "Hisense_SetDNS": "function", "Hisense_GetIsHotelMode": "function"}}}
+{"id": 2, "ok": true, "result": "root:x:0:0:root:/root:/usr/local/scripts/rootlogin.sh\ndaemon:x:1:1:daemon:/usr/sbin:/bin/false\n..."}
+{"id": 5, "ok": true, "result": "{\"AppInfo\":[{\"AppName\":\"TV Channels\",\"appId\":\"284\",\"remove\":0,\"from\":\"preset\",\"isShowOnLauncher\":true},{\"AppName\":\"Netflix\",\"appId\":\"1\",\"remove\":1,\"from\":\"preset\"}]}
+{"id": 60, "ok": true, "result": {"bc": {"ret": true, "msg": {"brightness": 53}}, "contrast": {"ret": true, "msg": {"contrast": 90}}, "memc": {"ret": true, "msg": {"memcStatus": 4}}}}
+{"id": 61, "ok": true, "result": {"set_bright": {"ret": true, "msg": "success"}, "bright_now": {"ret": true, "msg": {"brightness": 100}}}}
+{"id": 45, "ok": false, "error": "timeout"}
