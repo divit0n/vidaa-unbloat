@@ -1,0 +1,28 @@
+# Blacklist telemetrii/śledzenia Hisense VIDAA (+ Netflix logging + ads)
+# Oba formaty:
+
+# --- dnsmasq / OpenWrt (uci add_list dhcp.@dnsmasq[0].address='/domena/0.0.0.0') ---
+/ter-jrnl-eu.vidaahub.com/0.0.0.0
+/ter-jrnl-na.vidaahub.com/0.0.0.0
+/telemetry.vidaahub.com/0.0.0.0
+/metrics.vidaahub.com/0.0.0.0
+/rpt-mntz-azure.vidaahub.com/0.0.0.0
+/rsc-mntz.vidaahub.com/0.0.0.0
+/acr.unruly.co/0.0.0.0
+/logs.netflix.com/0.0.0.0
+/nrdp.push.prod.netflix.com/0.0.0.0
+/doubleclick.net/0.0.0.0
+/pixel.ssai.media/0.0.0.0
+
+# --- AdGuard Home / Pi-hole (format hosts też działa) ---
+0.0.0.0 ter-jrnl-eu.vidaahub.com
+0.0.0.0 ter-jrnl-na.vidaahub.com
+0.0.0.0 telemetry.vidaahub.com
+0.0.0.0 metrics.vidaahub.com
+0.0.0.0 rpt-mntz-azure.vidaahub.com
+0.0.0.0 rsc-mntz.vidaahub.com
+0.0.0.0 acr.unruly.co
+0.0.0.0 logs.netflix.com
+0.0.0.0 nrdp.push.prod.netflix.com
+0.0.0.0 doubleclick.net
+0.0.0.0 pixel.ssai.media
